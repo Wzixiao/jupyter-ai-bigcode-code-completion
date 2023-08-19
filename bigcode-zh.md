@@ -599,8 +599,8 @@ jupyter-ai 做法：用户填写完 model/apikey 等信息，点击保存后，�
 
 我当前想的做法：
 方案1. 每次用户打开必须重新填写，因为我们只需要前端进行网络请求（jupyter-ai是后端），在只有前端情况下，任何持久化都是不安全的。
-方案2. 修改 jupyter-ai 的后端，使其可以接受我们新的配置参数，并提供get接口，以确保每次加载 jupyterlab 时，我们都可以从后端读取配置
-方案3. 我们也使用后端进行请求，这样是最安全的
+方案2. 修改 jupyter-ai 的后端，使其可以接受我们新的配置参数，并提供get接口，以确保每次加载 jupyterlab 时，我们都可以从后端读取配置，他们可能不允许我们这样做
+方案3. 我们也使用后端进行保存和进行Bigcode请求，这样是最安全的
 
 // context.ts
 import { observable, makeObservable, action } from "mobx";

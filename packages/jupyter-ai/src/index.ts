@@ -12,7 +12,8 @@ import { buildChatSidebar } from './widgets/chat-sidebar';
 import { SelectionWatcher } from './selection-watcher';
 import { ChatHandler } from './chat_handler';
 import { buildErrorWidget } from './widgets/chat-error';
-
+import { buildBigcodeSidebar } from './widgets/bigcode';
+import { handleKeyDown } from "./keydown"
 export type DocumentTracker = IWidgetTracker<IDocumentWidget>;
 
 /**
@@ -48,14 +49,17 @@ const plugin: JupyterFrontEndPlugin<void> = {
     } catch (e) {
       chatWidget = buildErrorWidget();
     }
-
+    handleKeyDown(app)
+    const bigcodeWidget = buildBigcodeSidebar();
     /**
      * Add Chat widget to right sidebar
      */
     app.shell.add(chatWidget, 'left', { rank: 2000 });
+    app.shell.add(bigcodeWidget, 'left', { rank: 2401 });
 
     if (restorer) {
       restorer.add(chatWidget, 'jupyter-ai-chat');
+      restorer.add(bigcodeWidget, 'bigcode-continuation');
     }
   }
 };

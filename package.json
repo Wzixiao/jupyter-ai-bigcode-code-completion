@@ -42,5 +42,9 @@
   },
   "nx": {
     "includedScripts": []
+  },
+  "dependencies": {
+    "mobx": "^6.10.0",
+    "mobx-react": "^9.0.0"
   }
 }
