@@ -7,8 +7,8 @@ import { StateEffect } from '@codemirror/state';
 import { Notebook } from '@jupyterlab/notebook';
 import { NotebookPanel } from '@jupyterlab/notebook';
 import { Extension } from '@codemirror/state';
-import { addCodeAndReplaceColor } from './newUtils';
-import { getContent } from './newUtils';
+import { getAllCellTextByPosition, getContent } from './newUtils';
+import { getCellContentTextRequiredForBigCode, sendToBigCode } from './bigcode';
 
 // 创建一个软引用集合存放 editor
 const mountedEditors = new WeakSet<CodeMirrorEditor>();
@@ -37,7 +37,13 @@ const generateKeyDownExtension = (app: JupyterFrontEnd): Extension => {
       {
         key: 'Enter',
         run: () => {
-          console.log(addCodeAndReplaceColor(app, 'this new code text'));
+          console.log(
+            sendToBigCode(
+              getCellContentTextRequiredForBigCode(
+                getAllCellTextByPosition(app)
+              )
+            )
+          );
           return false;
         }
       }
