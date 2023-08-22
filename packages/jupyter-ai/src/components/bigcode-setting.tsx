@@ -1,29 +1,29 @@
+// import React, { useEffect } from 'react';
 import React, { useEffect } from 'react';
-
-import { Box, TextField, Button} from '@mui/material';
-import globalStore from "../context"
+import { Box, TextField } from '@mui/material';
+import GlobalStore from "../contexts/continue-writing-context"
+import { observer } from 'mobx-react-lite';
 
 type BigcodeSettingProps = {
 
 };
 
 
-function useGlobalStore() { 
-  const { accessToken, bigcodeUrl, setAccessToken, setBigcodeUrl } = globalStore; 
-  return { accessToken, bigcodeUrl, setAccessToken, setBigcodeUrl }; 
-} 
+export const BigCodeSetting = observer(({ }: BigcodeSettingProps) => {
+  const { bigcodeUrl } = GlobalStore
+  const { accessToken } = GlobalStore
 
-export function BigCodeSetting({ }: BigcodeSettingProps) {
-  const  { accessToken, bigcodeUrl, setBigcodeUrl, setAccessToken } = useGlobalStore();
-
-  useEffect(() => {
-    console.log("bigcodeUrl",bigcodeUrl);
-    console.log("accessToken",accessToken);
-  }, [bigcodeUrl, accessToken]);
-
-  const handleSave = () => {
-  
+  const setBigcodeUrlWrapper = (value: string) => {
+    GlobalStore.setBigcodeUrl(value)
   }
+  
+  const setAccessTokenWrapper = (value: string) => {
+    GlobalStore.setAccessToken(value)
+  }
+
+  useEffect(()=>{
+    GlobalStore.setBigcodeUrl("https://api-inference.huggingface.co/models/bigcode/starcoderbase/")
+  }, [])
 
   return (
     <Box
@@ -33,32 +33,26 @@ export function BigCodeSetting({ }: BigcodeSettingProps) {
         '& > .MuiAlert-root': { marginBottom: 2 },
         overflowY: 'auto'
       }}
-    > 
+    >
       <h2 className="jp-ai-ChatSettings-header">Bigcode service url</h2>
       <TextField
-          label="Bigcode service url"
-          value={bigcodeUrl}
-          fullWidth
-          type="text"
-          onChange={e => setBigcodeUrl(e.target.value)}
-        />
+        label="Bigcode service url"
+        value={bigcodeUrl}
+        fullWidth
+        type="text"
+        onChange={e => setBigcodeUrlWrapper(e.target.value)}
+      />
 
       <h2 className="jp-ai-ChatSettings-header">Huggingface Access Token</h2>
       <TextField
-          label="Huggingface Access Token"
-          value={accessToken}
-          fullWidth
-          type="password"
-          onChange={e => setAccessToken(e.target.value)}
-        />
-      
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Button variant="contained" onClick={handleSave}>
-          {'Save changes'}
-        </Button>
-      </Box>
+        label="Huggingface Access Token"
+        value={accessToken}
+        fullWidth
+        type="password"
+        onChange={e => setAccessTokenWrapper(e.target.value)}
+      />
 
     </Box>
   );
-}
+})
 
