@@ -10,19 +10,47 @@ import { Extension } from '@codemirror/state';
 import { addCodeAndReplaceColor } from './newUtils';
 import { getContent } from './newUtils';
 
-const mountExtension = (editor: CodeMirrorEditor): void => {
+// 创建一个软引用集合存放 editor
+const mountedEditors = new WeakSet<CodeMirrorEditor>();
+
+const mountExtension = (
+  editor: CodeMirrorEditor,
+  extension: Extension
+): void => {
+  // 如果 editor 已经被处理过
+  if (mountedEditors.has(editor)) {
+    return;
+  }
+
   const view = editor.editor as EditorView;
   const tr = view.state.update({
     effects: StateEffect.appendConfig.of(extension)
   });
 
   view.dispatch(tr);
+  mountedEditors.add(editor);
+};
+
+const generateKeyDownExtension = (app: JupyterFrontEnd): Extension => {
+  return Prec.highest(
+    keymap.of([
+      {
+        key: 'Enter',
+        run: () => {
+          console.log(addCodeAndReplaceColor(app, 'this new code text'));
+          return false;
+        }
+      }
+    ])
+  );
 };
 
 const init = (app: JupyterFrontEnd) => {
   if (!(app.shell instanceof LabShell)) {
     throw 'Shell is not an instance of LabShell. Jupyter AI does not currently support custom shells.';
   }
+
+  const extension = generateKeyDownExtension(app);
 
   app.shell.currentChanged.connect(async (sender, args) => {
     const currentWidget = args.newValue;
@@ -38,36 +66,26 @@ const init = (app: JupyterFrontEnd) => {
       const firstCell = content.activeCell;
       if (firstCell) {
         const firstCellEditor = firstCell.editor as CodeMirrorEditor;
-        mountExtension(firstCellEditor);
+        mountExtension(firstCellEditor, extension);
       }
 
-      content.activeCellChanged.connect((sender, cell) => {
+      content.activeCellChanged.connect(async (sender, cell) => {
         if (!cell) {
           return;
         }
 
-        const editor = cell.editor as CodeMirrorEditor;
-        mountExtension(editor);
+        const waitCellInitTimer = setTimeout(() => {
+          const editor = cell.editor as CodeMirrorEditor;
+          mountExtension(editor, extension);
+          clearTimeout(waitCellInitTimer);
+        }, 0);
       });
     }
   });
 };
 
-let extension: Extension;
-
 export const handleKeyDown = async (app: JupyterFrontEnd): Promise<void> => {
   await app.start();
-  extension = Prec.highest(
-    keymap.of([
-      {
-        key: 'Enter',
-        run: () => {
-          console.log(addCodeAndReplaceColor(app, 'this new code text'));
-          return false;
-        }
-      }
-    ])
-  );
   init(app);
   console.log('handleKeyDown is start');
 };
