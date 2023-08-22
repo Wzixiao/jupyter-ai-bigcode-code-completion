@@ -12,7 +12,7 @@ import { Decoration, DecorationSet } from '@codemirror/view';
 import type * as nbformat from '@jupyterlab/nbformat';
 
 // 获取 widget 实例
-const getContent = (widget: DocumentWidget): Widget => {
+export const getContent = (widget: DocumentWidget): Widget => {
   const { content } = widget;
   return content;
 };
@@ -292,24 +292,14 @@ export const getOutPut = (
 const clearTextEffect = StateEffect.define({});
 
 // 通过clearRedTextEffect还原之前代码的颜色
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function removeTextStatus(view: EditorView) {
+export function removeTextStatus(view: EditorView): void {
   view.dispatch({
     effects: clearTextEffect.of(null)
   });
 }
 
-// 制作标记的状态（就是说们标记了一个字符串，那么这个字符串 dom 的 class 是"red-color"）
-const redTexteMark = Decoration.mark({ class: 'red-color' });
-
 // 制作标记的状态（就是说们标记了一个字符串，那么这个字符串 dom 的 class 是"gray-color"）
-const grayTexteMark = Decoration.mark({ class: 'red-color' });
-
-// 标记的 css 主题
-const redTextTheme = EditorView.baseTheme({
-  '.red-color > span': { color: 'red !important' },
-  '.red-color ': { color: 'red !important' }
-});
+const grayTexteMark = Decoration.mark({ class: 'gray-color' });
 
 // 标记的 css 主题
 const grayTextTheme = EditorView.baseTheme({
@@ -323,29 +313,6 @@ const changeRangeTextStatus = StateEffect.define<{ from: number; to: number }>({
     from: change.mapPos(from),
     to: change.mapPos(to)
   })
-});
-
-// codemirror 中 editorView 的 extension
-const redTextField = StateField.define<DecorationSet>({
-  create() {
-    return Decoration.none;
-  },
-  update(redTexts, tr) {
-    redTexts = redTexts.map(tr.changes);
-    for (const e of tr.effects) {
-      if (e.is(changeRangeTextStatus)) {
-        redTexts = redTexts.update({
-          add: [redTexteMark.range(e.value.from, e.value.to)]
-        });
-      }
-    }
-    if (tr.effects.some(e => e.is(clearTextEffect))) {
-      return Decoration.none;
-    }
-
-    return redTexts;
-  },
-  provide: f => EditorView.decorations.from(f)
 });
 
 // codemirror 中 editorView 的 extension
@@ -371,27 +338,12 @@ const grayTextField = StateField.define<DecorationSet>({
   provide: f => EditorView.decorations.from(f)
 });
 
-// 将 EditorView 的指定范围的字符更改成红色
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function redTexSelection(view: EditorView, start: number, end: number) {
-  if (start === end) {
-    return false;
-  }
-  const effects: StateEffect<unknown>[] = [
-    changeRangeTextStatus.of({ from: start, to: end })
-  ];
-
-  if (!view.state.field(redTextField, false)) {
-    effects.push(StateEffect.appendConfig.of([redTextField, redTextTheme]));
-  }
-
-  view.dispatch({ effects });
-  return true;
-}
-
-// 将 EditorView 的指定范围的字符更改成红色
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export function grayTexSelection(view: EditorView, start: number, end: number) {
+// 将 EditorView 的指定范围的字符更改成灰色
+export function grayTexSelection(
+  view: EditorView,
+  start: number,
+  end: number
+): boolean {
   if (start === end) {
     return false;
   }
@@ -407,12 +359,16 @@ export function grayTexSelection(view: EditorView, start: number, end: number) {
   return true;
 }
 
-export const addCodeAndReplaceColor = (app: JupyterFrontEnd): boolean => {
+export const addCodeAndReplaceColor = (
+  app: JupyterFrontEnd,
+  newCodeText: string
+): boolean => {
   // 获取当前活动的文档窗口
   const currentWidget = app.shell.currentWidget;
   if (!(currentWidget instanceof DocumentWidget)) {
     return false;
   }
+
   // content的类型也是widget，只不过是被widget容器包裹起来的
   const { content } = currentWidget;
   // 当前操作的单元格
@@ -420,24 +376,21 @@ export const addCodeAndReplaceColor = (app: JupyterFrontEnd): boolean => {
   // 当前操作的单元格的 codemirror 实例对象
   const editor = activeCell.editor as CodeMirrorEditor;
   if (editor) {
+    const prePosition = editor.getCursorPosition();
     const view = editor.editor;
-
     // 获取原先cell中的代码
     const oldCodeText = editor.model.sharedModel.getSource();
-    // 我们需要添加的代码（非必要）
-    const newCodeText = "\n    print('hello world!')\nhello()";
     // 更新当前的代码
     editor.model.sharedModel.setSource(oldCodeText + newCodeText);
-
+    // 使鼠标指针恢复到之前的位置，否则会指向0位
+    editor.setCursorPosition(prePosition);
     // 将新增加的代码颜色变成红色
-    redTexSelection(
+    return grayTexSelection(
       view,
       oldCodeText.length,
       (oldCodeText + newCodeText).length
     );
-    // 还原成之前的样子
-    removeTextStatus(view);
-    return true;
   }
+
   return false;
 };
