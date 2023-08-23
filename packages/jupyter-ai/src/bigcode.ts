@@ -1,5 +1,9 @@
 import GlobalStore from './contexts/continue-writing-context';
 
+type resultRow = {
+  generated_text: string
+}
+
 export const getCellContentTextRequiredForBigCode = (
   contexts: string[] | null
 ) => {
@@ -11,16 +15,24 @@ export const getCellContentTextRequiredForBigCode = (
   return prompt;
 };
 
-export const sendToBigCode = async (prompt: string | null) => {
+export const processCompletionResult = (result: resultRow[]): string => {
+  if (result.length == 0){
+    return ""
+  }
+
+  return result[0].generated_text.replace("<jupyter_output>", "")
+}
+
+
+export const sendToBigCode = async (prompt: string | null): Promise<resultRow[]> => {
   const { bigcodeUrl } = GlobalStore;
   const { accessToken } = GlobalStore;
+
   if (!bigcodeUrl || !accessToken || !prompt) {
     alert('BigCode service URL or Huggingface Access Token not set.');
-    return '';
+    return new Promise((resolve, reject) => { reject('BigCode service URL or Huggingface Access Token not set.') });
   }
-  console.log(prompt);
-  console.log(bigcodeUrl);
-  console.log(accessToken);
+
   const bodyData = {
     inputs: prompt,
     stream: false,

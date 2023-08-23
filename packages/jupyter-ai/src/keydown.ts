@@ -7,8 +7,8 @@ import { StateEffect } from '@codemirror/state';
 import { Notebook } from '@jupyterlab/notebook';
 import { NotebookPanel } from '@jupyterlab/notebook';
 import { Extension } from '@codemirror/state';
-import { getAllCellTextByPosition, getContent } from './newUtils';
-import { getCellContentTextRequiredForBigCode, sendToBigCode } from './bigcode';
+import { getAllCellTextByPosition, getContent, addCodeAndReplaceColor } from './newUtils';
+import { getCellContentTextRequiredForBigCode, sendToBigCode, processCompletionResult } from './bigcode';
 
 // 创建一个软引用集合存放 editor
 const mountedEditors = new WeakSet<CodeMirrorEditor>();
@@ -31,20 +31,24 @@ const mountExtension = (
   mountedEditors.add(editor);
 };
 
+const continueWriting = (app: JupyterFrontEnd): boolean => {
+  const contexts = getAllCellTextByPosition(app)
+  const prompt = getCellContentTextRequiredForBigCode(contexts)
+  sendToBigCode(prompt).then(result => {
+    const resultCode = processCompletionResult(result)
+    console.log(resultCode);
+    addCodeAndReplaceColor(app, resultCode)
+  })
+  return false;
+}
+
 const generateKeyDownExtension = (app: JupyterFrontEnd): Extension => {
   return Prec.highest(
     keymap.of([
       {
-        key: 'Enter',
+        key: 'Ctrl-Space',
         run: () => {
-          const contexts = getAllCellTextByPosition(app)
-          const prompt = getCellContentTextRequiredForBigCode(contexts)
-          sendToBigCode(prompt).then(result=>{
-            console.log(result);
-            
-          })
-          
-          return false;
+          return continueWriting(app)
         }
       }
     ])

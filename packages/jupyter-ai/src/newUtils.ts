@@ -382,6 +382,9 @@ export const addCodeAndReplaceColor = (
     const oldCodeText = editor.model.sharedModel.getSource();
     // 更新当前的代码
     editor.model.sharedModel.setSource(oldCodeText + newCodeText);
+    console.log('oldCode', JSON.stringify(oldCodeText));
+    console.log('newCode', JSON.stringify(newCodeText));
+    console.log('fullCode', JSON.stringify(oldCodeText + newCodeText));
     // 使鼠标指针恢复到之前的位置，否则会指向0位
     editor.setCursorPosition(prePosition);
     // 将新增加的代码颜色变成红色
