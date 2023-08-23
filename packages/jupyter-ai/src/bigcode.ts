@@ -1,6 +1,5 @@
 import GlobalStore from './contexts/continue-writing-context';
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export const getCellContentTextRequiredForBigCode = (
   contexts: string[] | null
 ) => {
@@ -12,7 +11,6 @@ export const getCellContentTextRequiredForBigCode = (
   return prompt;
 };
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export const sendToBigCode = async (prompt: string | null) => {
   const { bigcodeUrl } = GlobalStore;
   const { accessToken } = GlobalStore;

@@ -37,13 +37,13 @@ const generateKeyDownExtension = (app: JupyterFrontEnd): Extension => {
       {
         key: 'Enter',
         run: () => {
-          console.log(
-            sendToBigCode(
-              getCellContentTextRequiredForBigCode(
-                getAllCellTextByPosition(app)
-              )
-            )
-          );
+          const contexts = getAllCellTextByPosition(app)
+          const prompt = getCellContentTextRequiredForBigCode(contexts)
+          sendToBigCode(prompt).then(result=>{
+            console.log(result);
+            
+          })
+          
           return false;
         }
       }

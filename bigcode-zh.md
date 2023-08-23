@@ -141,44 +141,106 @@ export default plugin;
 
 ### 文字说明逻辑
 
-1. 构造handler处理程序，如"src/handler/handleKeyDown.ts"
-2. 在app加载此处理程序，如"src/index.ts"
+1. 创建 mirrorcode 的 extension（键盘事件）
+2. 当 notebook 发生变化时，将 notebbok 默认选中的 cell 添加此 extension
+3. 在 notebook 中挂载 cell 变化事件，如果 cell 发生变化，则将 extension 添加至 cell 的 codemirror实例中
+4. 在app加载此处理程序
 
 ### 代码说明
 
 ```typescript
 // src/handler/handleKeyDown.ts
-// 监听键盘事件处理程序
-export const handleKeyDown = (app: JupyterFrontEnd) => {
-  /*
-  在这个说明版本中我们添加监听器到全局document中，
-  实际开发中我们应该换成在 jupyterlab 的右侧代码填写区dom中，
-  并且我们需要根据配置页面是否打开此功能来动态启动此处理程序
-  */   
-  document.addEventListener('keydown', event => {
-    // 检测到 Ctrl 键被按下，此处可以进行进一步处理
-    if (event.ctrlKey) {
-      // 以下是获取单元格的示例
-      
-      
-      // 获取当前活动的文档窗口，它可以是任何可视化的组件，如文档窗口、文件浏览器、绘图工具等
-      // app： This type is useful as a generic application against which front-end plugins * can be authored. It inherits from the Lumino `Application`.
-      // shell：The shell widget is the root "container" widget for the entire application. It will typically expose an API which allows the application plugins to insert content in a variety of places.
-      // DocumentWidget: DocumentWidget 在源码中继承了 MainAreaWidget，是指整个右侧的窗口（一个notebook）
-      const currentWidget = app.shell.currentWidget;
-      if (!(currentWidget instanceof DocumentWidget)) {
-          return null;
-      }
-      // 这个 content 通常是主要的编辑区域，对于notebook，它表示包含所有单元格的区域，也可以被成为当前文档，它的类型也是 Widget
-      const { content } = currentWidget
-      // 当前操作的单元格
-      const activeCell = content.activeCell;
-      // 当前操作的单元格的 codemirror 实例对象
-      const editor = activeCell.editor as CodeMirrorEditor;
-      // 所有的单元格（list）
-      const allCell = content.cellsArray
+
+// 创建一个软引用对象，用来保存我们给那个单元格添加键盘事件了
+const mountedEditors = new WeakSet<CodeMirrorEditor>();
+
+// 将 extension 挂在到 codemirror 的 editor
+const mountExtension = (
+  editor: CodeMirrorEditor,
+  extension: Extension
+): void => {
+  // 如果 editor 已经被处理过
+  if (mountedEditors.has(editor)) {
+    return;
+  }
+
+  const view = editor.editor as EditorView;
+  const tr = view.state.update({
+    effects: StateEffect.appendConfig.of(extension)
+  });
+
+  view.dispatch(tr);
+  mountedEditors.add(editor);
+};
+
+// 生成 extension，一个很简单的实例，按下 Enter 发送请求并打印返回值
+const generateKeyDownExtension = (app: JupyterFrontEnd): Extension => {
+  return Prec.highest(
+    keymap.of([
+      {
+        key: 'Enter',
+        run: () => {
+          const contexts = getAllCellTextByPosition(app)
+          const prompt = getCellContentTextRequiredForBigCode(contexts)
+          sendToBigCode(prompt).then(result=>{
+            console.log(result);
+          })
+          
+          return false;
+        }
+      }
+    ])
+  );
+};
+
+const init = (app: JupyterFrontEnd) => {
+  if (!(app.shell instanceof LabShell)) {
+    throw 'Shell is not an instance of LabShell. Jupyter AI does not currently support custom shells.';
+  }
+
+  const extension = generateKeyDownExtension(app);
+
+  // 监听选中的 widget 是否发生变化
+  app.shell.currentChanged.connect(async (sender, args) => {
+    const currentWidget = args.newValue;
+    // 如果不是 notebook
+    if (!currentWidget || !(currentWidget instanceof NotebookPanel)) {
+      return;
+    }
+
+    // 等待窗口实例化完毕
+    await currentWidget.context.ready;
+    const content = getContent(currentWidget);
+
+    if (content instanceof Notebook) {
+      // 优先挂载加载时选中的Cell
+      const firstCell = content.activeCell;
+      if (firstCell) {
+        const firstCellEditor = firstCell.editor as CodeMirrorEditor;
+        mountExtension(firstCellEditor, extension);
+      }
+      // 挂载 cell 切换事件
+      content.activeCellChanged.connect(async (sender, cell) => {
+        if (!cell) {
+          return;
+        }
+        // 新创建cell时，cell实例化可能还没有完成，优先让实例化完成
+        const waitCellInitTimer = setTimeout(() => {
+          const editor = cell.editor as CodeMirrorEditor;
+          mountExtension(editor, extension);
+          clearTimeout(waitCellInitTimer);
+        }, 0);
+      });
     }
   });
+};
+
+// 监听键盘事件处理程序
+export const handleKeyDown = async (app: JupyterFrontEnd): Promise<void> => {
+  // 等待notebook初始化完成
+  await app.start();
+  init(app);
+  console.log('handleKeyDown is start');
 };
 ```
 ```typescript
