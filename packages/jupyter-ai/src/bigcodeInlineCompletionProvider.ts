@@ -35,6 +35,7 @@ export class BigcodeInlineCompletionProvider
   private _trans: TranslationBundle;
   private _history: { prompt: string; insertText: string }[] = [];
   private _requesting = false;
+  private _stop = false;
 
   constructor(protected options: HistoryInlineCompletionProvider.IOptions) {
     const translator = options.translator || nullTranslator;
@@ -66,14 +67,11 @@ export class BigcodeInlineCompletionProvider
           ? null
           : this._history[this._history.length - 1];
 
-      console.log('_requesting', this._requesting);
-      console.log('prompt', prompt);
-      console.log('lastHistory', lastHistory);
-
       if (lastHistory) {
         if (prompt.indexOf(lastHistory.prompt) !== -1) {
           const userInsertText = prompt.replace(lastHistory.prompt, '');
           if (lastHistory.insertText.startsWith(userInsertText)) {
+            this._stop = true;
             return {
               items: [
                 {
@@ -102,6 +100,9 @@ export class BigcodeInlineCompletionProvider
   async *stream(
     token: string
   ): AsyncGenerator<{ response: IInlineCompletionItem }, undefined, unknown> {
+    console.log('aa');
+    console.log(this._requesting);
+
     let fullTotal = 0;
     this._requesting = true;
 
@@ -110,6 +111,12 @@ export class BigcodeInlineCompletionProvider
 
     while (true) {
       await new Promise(resolve => setTimeout(resolve, 25));
+      if (this._stop) {
+        this._stop = false;
+        this._requesting = false;
+        return;
+      }
+
       fullTotal += 1;
       const newHistory = this._history;
       newHistory[newHistory.length - 1].insertText = testResultText.slice(
@@ -122,7 +129,7 @@ export class BigcodeInlineCompletionProvider
         this._requesting = false;
         yield {
           response: {
-            isIncomplete: true,
+            isIncomplete: false,
             insertText: testResultText.slice(0, fullTotal)
           }
         };
@@ -131,7 +138,7 @@ export class BigcodeInlineCompletionProvider
 
       yield {
         response: {
-          isIncomplete: false,
+          isIncomplete: true,
           insertText: testResultText.slice(0, fullTotal)
         }
       };
