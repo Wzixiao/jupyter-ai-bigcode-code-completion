@@ -11,11 +11,7 @@ import { NotebookPanel } from '@jupyterlab/notebook';
 import { nullTranslator, TranslationBundle } from '@jupyterlab/translation';
 import { getNotebookContentCursor } from './utils/cell-context';
 import { constructContinuationPrompt } from './utils/bigcode-request';
-// import CodeCompletionContextStore from './contexts/code-completion-context-store';
-
-// const { bigcodeUrl } = CodeCompletionContextStore;
-
-// type fetchResponse = { generated_text: string }[];
+import CodeCompletionContextStore from './contexts/code-completion-context-store';
 
 // type BigCodeStream = {
 //   token: {
@@ -33,7 +29,10 @@ export class BigcodeInlineCompletionProvider
 {
   readonly identifier = '@jupyterlab/inline-completer:bigcode';
   private _trans: TranslationBundle;
-  private _history: { prompt: string; insertText: string }[] = [];
+  private _lastRequestInfo: { prompt: string; insertText: string } = {
+    prompt: '',
+    insertText: ''
+  };
   private _requesting = false;
   private _stop = false;
 
@@ -50,6 +49,16 @@ export class BigcodeInlineCompletionProvider
     request: CompletionHandler.IRequest,
     context: IInlineCompletionContext
   ): Promise<IInlineCompletionList<IInlineCompletionItem>> {
+    console.log(CodeCompletionContextStore);
+    if (!CodeCompletionContextStore.enableCodeCompletion) {
+      return { items: [] };
+    }
+
+    if (!CodeCompletionContextStore.accessToken) {
+      alert('Huggingface Access Token not set.');
+      return { items: [] };
+    }
+
     const items: IInlineCompletionItem[] = [];
     if (context.widget instanceof NotebookPanel) {
       const widget = context.widget as NotebookPanel;
@@ -62,32 +71,26 @@ export class BigcodeInlineCompletionProvider
         };
       }
 
-      const lastHistory =
-        this._history.length === 0
-          ? null
-          : this._history[this._history.length - 1];
+      const lastPrompt = this._lastRequestInfo.prompt;
+      const lastInsertText = this._lastRequestInfo.insertText;
 
-      if (lastHistory) {
-        if (prompt.indexOf(lastHistory.prompt) !== -1) {
-          const userInsertText = prompt.replace(lastHistory.prompt, '');
-          if (lastHistory.insertText.startsWith(userInsertText)) {
-            this._stop = true;
-            return {
-              items: [
-                {
-                  isIncomplete: false,
-                  insertText: lastHistory.insertText.replace(userInsertText, '')
-                }
-              ]
-            };
-          }
+      if (lastPrompt !== '' && prompt.indexOf(lastPrompt) !== -1) {
+        const userInsertText = prompt.replace(lastPrompt, '');
+
+        if (lastInsertText.startsWith(userInsertText)) {
+          this._stop = true;
+          return {
+            items: [
+              {
+                isIncomplete: false,
+                insertText: lastInsertText.replace(userInsertText, '')
+              }
+            ]
+          };
         }
       }
 
-      this._history.push({
-        prompt: prompt,
-        insertText: ''
-      });
+      this._lastRequestInfo = { prompt, insertText: '' };
       items.push({
         token: prompt,
         isIncomplete: true,
@@ -100,49 +103,33 @@ export class BigcodeInlineCompletionProvider
   async *stream(
     token: string
   ): AsyncGenerator<{ response: IInlineCompletionItem }, undefined, unknown> {
-    console.log('aa');
     console.log(this._requesting);
-
-    let fullTotal = 0;
-    this._requesting = true;
+    const delay = (ms: number) =>
+      new Promise(resolve => setTimeout(resolve, ms));
 
     const testResultText =
       'print("Hello World")\nhello_world()\n    print("Hello World")\nhello_world()\n    print("Hello World")\nhello_world()\n    print("Hello World")\nhello_world()';
 
-    while (true) {
-      await new Promise(resolve => setTimeout(resolve, 25));
+    for (let i = 1; i <= testResultText.length; i++) {
+      await delay(25);
+
       if (this._stop) {
+        this._requesting = false;
         this._stop = false;
-        this._requesting = false;
         return;
       }
 
-      fullTotal += 1;
-      const newHistory = this._history;
-      newHistory[newHistory.length - 1].insertText = testResultText.slice(
-        0,
-        fullTotal
-      );
-      this._history = newHistory;
-
-      if (fullTotal > 150) {
-        this._requesting = false;
-        yield {
-          response: {
-            isIncomplete: false,
-            insertText: testResultText.slice(0, fullTotal)
-          }
-        };
-        return;
-      }
-
+      const currentText = testResultText.slice(0, i);
+      this._lastRequestInfo.insertText = currentText;
       yield {
         response: {
-          isIncomplete: true,
-          insertText: testResultText.slice(0, fullTotal)
+          isIncomplete: i !== testResultText.length - 1,
+          insertText: currentText
         }
       };
     }
+
+    this._requesting = false;
   }
 
   // async *stream(
@@ -151,6 +138,7 @@ export class BigcodeInlineCompletionProvider
   //   if (token === '') {
   //     return;
   //   }
+  //   console.log(this._requesting);
 
   //   this._requesting = true;
 
@@ -165,10 +153,11 @@ export class BigcodeInlineCompletionProvider
   //     }
   //   };
 
-  //   const response = await fetch(bigcodeUrl, {
+  //   const response = await fetch(CodeCompletionContextStore.bigcodeUrl, {
   //     method: 'POST',
   //     headers: {
   //       'Content-Type': 'application/json',
+  //       Authorization: 'Bearer ' + CodeCompletionContextStore.accessToken
   //     },
   //     body: JSON.stringify(bodyData)
   //   });
@@ -206,8 +195,9 @@ export class BigcodeInlineCompletionProvider
   //   while (true) {
   //     const { value, done } = await reader.read();
 
-  //     if (done) {
+  //     if (done || this._stop) {
   //       this._requesting = false;
+  //       this._stop = false;
   //       break;
   //     }
 
@@ -222,13 +212,13 @@ export class BigcodeInlineCompletionProvider
 
   //         if (done) {
   //           this._requesting = false;
-  //           this._history.push({
-  //             token,
-  //             reponseTokenText
-  //           });
+  //           this._lastRequestInfo.insertText = reponseTokenText;
+  //           return;
   //         } else {
   //           reponseTokenText += chunkData.token.text;
   //         }
+
+  //         this._lastRequestInfo.insertText = reponseTokenText;
 
   //         yield {
   //           response: {
