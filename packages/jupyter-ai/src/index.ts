@@ -14,6 +14,9 @@ import { SelectionWatcher } from './selection-watcher';
 import { ChatHandler } from './chat_handler';
 import { buildErrorWidget } from './widgets/chat-error';
 import { handleCodeCompletionKeyDown } from './keydown-handler';
+import { ICompletionProviderManager } from '@jupyterlab/completer';
+import { ITranslator, nullTranslator } from '@jupyterlab/translation';
+import { BigcodeInlineCompletionProvider } from './bigcodeInlineCompletionProvider';
 
 export type DocumentTracker = IWidgetTracker<IDocumentWidget>;
 
@@ -52,30 +55,56 @@ const plugin: JupyterFrontEndPlugin<void> = {
     }
 
     /**
-     * Initialize bigcode settings widget
-     */
-    const bigcodeWidget = buildBigcodeSidebar();
-
-    /**
-     * Initialize keydown handler
-     */
-    handleCodeCompletionKeyDown(app);
-
-    /**
      * Add Chat widget to right sidebar
      */
     app.shell.add(chatWidget, 'left', { rank: 2000 });
+
+    if (restorer) {
+      restorer.add(chatWidget, 'jupyter-ai-chat');
+    }
+  }
+};
+
+const bigcodeCodeCompletion: JupyterFrontEndPlugin<void> = {
+  id: '@jupyterlab/completer-extension:inline-bigcode',
+  description:
+    'Adds inline completion provider suggesting code from execution history.',
+  requires: [ICompletionProviderManager],
+  optional: [ILayoutRestorer],
+  autoStart: true,
+  activate: (
+    app: JupyterFrontEnd,
+    completionManager: ICompletionProviderManager,
+    restorer: ILayoutRestorer | null,
+    translator: ITranslator | null
+  ): void => {
+    /**
+     * Initialize bigcode settings widget
+     */
+    const bigcodeWidget = buildBigcodeSidebar();
 
     /**
      * Add Bigcode settings widget to right sidebar
      */
     app.shell.add(bigcodeWidget, 'left', { rank: 2001 });
 
+    /**
+     * Initialize keydown handler
+     */
+    handleCodeCompletionKeyDown(app, completionManager);
+
     if (restorer) {
-      restorer.add(chatWidget, 'jupyter-ai-chat');
       restorer.add(bigcodeWidget, 'bigcode-code-completion');
     }
+
+    completionManager.registerInlineProvider(
+      new BigcodeInlineCompletionProvider({
+        translator: translator ?? nullTranslator
+      })
+    );
   }
 };
 
-export default plugin;
+const plugins: JupyterFrontEndPlugin<any>[] = [plugin, bigcodeCodeCompletion];
+
+export default plugins;

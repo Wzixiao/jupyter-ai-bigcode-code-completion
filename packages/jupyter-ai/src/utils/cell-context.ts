@@ -1,7 +1,7 @@
 import { JupyterFrontEnd } from '@jupyterlab/application';
 import { CodeEditor } from '@jupyterlab/codeeditor';
 import { DocumentWidget } from '@jupyterlab/docregistry';
-import { Notebook } from '@jupyterlab/notebook';
+import { Notebook, NotebookPanel } from '@jupyterlab/notebook';
 import { CodeCell, MarkdownCell, Cell } from '@jupyterlab/cells';
 
 import { ICell, ICellType } from '../types/cell';
@@ -124,7 +124,6 @@ const getCellOutput = (cell: Cell): string => {
   }
 
   return cell.model.sharedModel.outputs.reduce((acc, output) => {
-    console.log(output);
     switch (output.output_type) {
       case 'execute_result':
         if (output.data) {
@@ -184,6 +183,31 @@ export const getNotebookContentUntilCursor = (
   }
 
   const content = getSpecificWidget(currentWidget);
+  if (!(content instanceof Notebook)) {
+    return null;
+  }
+
+  const activeCellIndex = content.activeCellIndex;
+
+  const cellsUpToCursor = content.widgets
+    .slice(0, activeCellIndex + 1)
+    .flatMap((cell, index) => getCellDetails(cell, index === activeCellIndex));
+
+  // Check if the last cell type is 'output' and remove it
+  if (
+    cellsUpToCursor.length > 0 &&
+    cellsUpToCursor[cellsUpToCursor.length - 1].type === 'output'
+  ) {
+    cellsUpToCursor.pop();
+  }
+
+  return cellsUpToCursor;
+};
+
+export const getNotebookContentCursor = (
+  widget: NotebookPanel
+): ICell[] | null => {
+  const content = getSpecificWidget(widget);
   if (!(content instanceof Notebook)) {
     return null;
   }

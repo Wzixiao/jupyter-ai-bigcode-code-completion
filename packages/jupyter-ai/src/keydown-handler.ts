@@ -12,11 +12,12 @@ import { CodeEditor } from '@jupyterlab/codeeditor';
 import { getSpecificWidget } from './utils/instance';
 import {
   codeCompletion,
-  removeColor,
+  // removeColor,
   handleAnyKeyPress
 } from './bigcode/bigcode-code-completion';
 import { parseKeyboardEventToShortcut } from './utils/keyboard';
 import GlobalStore from './contexts/code-completion-context-store';
+import { ICompletionProviderManager } from '@jupyterlab/completer';
 
 // Create a weak reference set to store the editor
 const mountedEditors = new WeakSet<CodeMirrorEditor>();
@@ -68,15 +69,15 @@ const mountEditorWithDelay = (
 };
 
 /// Generates a keydown extension for handling various keypress events.
-const generateKeyDownExtension = (app: JupyterFrontEnd): Extension => {
+const generateKeyDownExtension = (
+  app: JupyterFrontEnd,
+  completionManager: ICompletionProviderManager
+): Extension => {
   return Prec.highest(
     keymap.of([
       {
         any: (view: EditorView, event: KeyboardEvent) => {
-          if (!GlobalStore.enableCodeCompletion) {
-            return false;
-          }
-
+          // app.commands.execute('inline-completer:invoke');
           const parsedShortcut = parseKeyboardEventToShortcut(event);
           console.debug('keyboard press: ', parsedShortcut);
 
@@ -86,8 +87,13 @@ const generateKeyDownExtension = (app: JupyterFrontEnd): Extension => {
           }
 
           if (event.code === 'Enter') {
-            console.debug('keyboard press: removeColor function is Running');
-            return removeColor(view);
+            const currentWidget = app.shell.currentWidget;
+
+            if (currentWidget) {
+              // app.commands.execute('inline-completer:invoke');
+              app.commands.execute('inline-completer:accept');
+            }
+            return true;
           }
 
           return handleAnyKeyPress(view);
@@ -102,12 +108,15 @@ const generateKeyDownExtension = (app: JupyterFrontEnd): Extension => {
  * This function sets up listeners for changes in the current widget and mounts the editor accordingly.
  * @param {JupyterFrontEnd} app - The JupyterFrontEnd application instance.
  */
-const initializeKeyDownHandlers = (app: JupyterFrontEnd) => {
+const initializeKeyDownHandlers = (
+  app: JupyterFrontEnd,
+  completionManager: ICompletionProviderManager
+) => {
   if (!(app.shell instanceof LabShell)) {
     throw 'Shell is not an instance of LabShell. Jupyter AI does not currently support custom shells.';
   }
 
-  const extension = generateKeyDownExtension(app);
+  const extension = generateKeyDownExtension(app, completionManager);
 
   // Listen for changes in the current weiget
   app.shell.currentChanged.connect(async (sender, args) => {
@@ -147,10 +156,11 @@ const initializeKeyDownHandlers = (app: JupyterFrontEnd) => {
  * @returns {Promise<void>}
  */
 export const handleCodeCompletionKeyDown = async (
-  app: JupyterFrontEnd
+  app: JupyterFrontEnd,
+  completionManager: ICompletionProviderManager
 ): Promise<void> => {
   // Wait for the notebook to finish initializing
   await app.start();
-  initializeKeyDownHandlers(app);
+  initializeKeyDownHandlers(app, completionManager);
   console.log('handleCodeCompletionKeyDown is start...');
 };
