@@ -10,13 +10,13 @@ import { Extension } from '@codemirror/state';
 import { CodeEditor } from '@jupyterlab/codeeditor';
 
 import { getSpecificWidget } from './utils/instance';
-import {
-  codeCompletion,
-  // removeColor,
-  handleAnyKeyPress
-} from './bigcode/bigcode-code-completion';
-import { parseKeyboardEventToShortcut } from './utils/keyboard';
-import GlobalStore from './contexts/code-completion-context-store';
+// import {
+//   codeCompletion,
+//   // removeColor,
+//   handleAnyKeyPress
+// } from './bigcode/bigcode-code-completion';
+// import { parseKeyboardEventToShortcut } from './utils/keyboard';
+// import GlobalStore from './contexts/code-completion-context-store';
 import { ICompletionProviderManager } from '@jupyterlab/completer';
 
 // Create a weak reference set to store the editor
@@ -78,13 +78,13 @@ const generateKeyDownExtension = (
       {
         any: (view: EditorView, event: KeyboardEvent) => {
           // app.commands.execute('inline-completer:invoke');
-          const parsedShortcut = parseKeyboardEventToShortcut(event);
-          console.debug('keyboard press: ', parsedShortcut);
+          // const parsedShortcut = parseKeyboardEventToShortcut(event);
+          // console.debug('keyboard press: ', parsedShortcut);
 
-          if (parsedShortcut === GlobalStore.shortcutStr) {
-            console.debug('keyboard press: codeCompletion function is Running');
-            return codeCompletion(app, view);
-          }
+          // if (parsedShortcut === GlobalStore.shortcutStr) {
+          //   console.debug('keyboard press: codeCompletion function is Running');
+          //   return codeCompletion(app, view);
+          // }
 
           if (event.code === 'Enter') {
             const currentWidget = app.shell.currentWidget;
@@ -92,11 +92,13 @@ const generateKeyDownExtension = (
             if (currentWidget) {
               // app.commands.execute('inline-completer:invoke');
               app.commands.execute('inline-completer:accept');
+              app.commands.execute('inline-completer:invoke');
             }
             return true;
           }
 
-          return handleAnyKeyPress(view);
+          return false;
+          // return handleAnyKeyPress(view);
         }
       }
     ])
