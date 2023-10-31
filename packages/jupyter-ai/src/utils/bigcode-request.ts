@@ -63,7 +63,7 @@ class Bigcode {
         'BigCode service URL or Huggingface Access Token not set.'
       );
     }
-    console.debug(this.prompt);
+
     if (!this._prompt) {
       throw new Error('Prompt is null');
     }
