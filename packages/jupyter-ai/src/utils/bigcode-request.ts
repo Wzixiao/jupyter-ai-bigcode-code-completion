@@ -4,6 +4,21 @@ import CodeCompletionContextStore, {
 import { ICell } from '../types/cell';
 import { makeObservable, computed } from 'mobx';
 
+export type BigCodeServiceStreamResponseItem = {
+  token: {
+    id: number;
+    text: string;
+    logprob: number;
+    special: boolean;
+  };
+  generated_text: string | null;
+  details: null;
+};
+
+export type BigCodeServiceNotStreamResponse = {
+  generated_text: string;
+}[];
+
 /**
  * Generates the appropriate prompt string based on the cell type.
  * The cell type can be either 'code' or 'markdown'.
@@ -11,7 +26,6 @@ import { makeObservable, computed } from 'mobx';
  * @param {ICell} cell - The cell object which includes the type and content.
  * @returns {string} The generated prompt string for the cell.
  */
-
 class Bigcode {
   spaceCount: number;
   private _prompt: string;
@@ -38,21 +52,25 @@ class Bigcode {
     return this._prompt;
   }
 
-  async fetchStream() {
+  async fetchStream(stream: true): Promise<ReadableStream<Uint8Array>>;
+  async fetchStream(stream: false): Promise<BigCodeServiceNotStreamResponse>;
+  async fetchStream(
+    stream = false
+  ): Promise<ReadableStream<Uint8Array> | BigCodeServiceNotStreamResponse> {
     if (!this.bigcodeUrl || !this.accessToken) {
       alert('BigCode service URL or Huggingface Access Token not set.');
       throw new Error(
         'BigCode service URL or Huggingface Access Token not set.'
       );
     }
-
+    console.debug(this.prompt);
     if (!this._prompt) {
       throw new Error('Prompt is null');
     }
 
     const bodyData = {
       inputs: this.prompt,
-      stream: true,
+      stream,
       parameters: {
         temperature: 0.01,
         return_full_text: false,
@@ -80,7 +98,7 @@ class Bigcode {
       throw new Error(await response.json());
     }
 
-    return streamData;
+    return stream ? streamData : response.json();
   }
 
   getPromptForCell = (cell: ICell): string => {
